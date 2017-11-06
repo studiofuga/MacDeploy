@@ -3,6 +3,7 @@
 //
 
 #include "Target.h"
+#include "ComponentInfo.h"
 
 #include <boost/filesystem.hpp>
 #include <boost/log/trivial.hpp>
@@ -11,6 +12,7 @@
 #include <algorithm>
 #include <set>
 #include <regex>
+#include <iostream>
 
 using namespace std;
 
@@ -39,18 +41,30 @@ Target::Target(std::string path)
     std::copy(defaultAdditionalLibrarySearchPath.begin(), defaultAdditionalLibrarySearchPath.end(),
               back_inserter(mAdditionalLibraryPaths)
     );
+
+    mFrameworksPath = mPath / "Contents/Frameworks/";
+    mExePath = mPath / "Contents/MacOS/";
 }
 
 bool Target::process()
 {
-    auto executables = listAllComponents("Contents/MacOS/");
-    auto frameworks = listAllComponents("Contents/Frameworks/");
+    auto executables = listAllComponents(mExePath.string());
+    auto frameworks = listAllComponents(mFrameworksPath.string());
 
     std::list<std::string> components;
     std::copy(executables.begin(), executables.end(), std::back_inserter(components));
     std::copy(frameworks.begin(), frameworks.end(), std::back_inserter(components));
 
     auto objects = traverseAppDependencies (components);
+
+    for (auto obj : objects) {
+        cout << obj.getName() << " in " << obj.getPath() << ":\n";
+        for (auto lib : obj.getDependencies())
+            cout << "   " << lib.getName() << "\n";
+    }
+
+    copyObjects(objects);
+    fixLinks(objects);
 
     return true;
 }
@@ -117,9 +131,9 @@ std::string Target::resolveLibrary(std::string library)
     }
 }
 
-std::list<std::string> Target::traverseAppDependencies(std::list<std::string> components)
+std::list<ComponentInfo> Target::traverseAppDependencies(std::list<std::string> components)
 {
-    std::list<string> dependencyList;
+    std::list<ComponentInfo> objectComponents;
 
     std::set<std::string> processedComponents;
     while (!components.empty()) {
@@ -141,12 +155,22 @@ std::list<std::string> Target::traverseAppDependencies(std::list<std::string> co
         if (comp != processedComponents.end())
             continue;
 
+        bf::path currentPath(current);
+        ComponentInfo componentInfo;
+        componentInfo.setName(currentPath.filename().string());
+        componentInfo.setPath(currentPath.parent_path().string());
+
         auto external_libs = collectLinkerReferences(current);
 
         for (auto lib : external_libs) {
             auto comp = processedComponents.find(lib);
-            if (comp != processedComponents.end())
+            if (comp != processedComponents.end()) {
+                Dependency d;
+                bf::path libpath(lib);
+                d.setName(libpath.filename().string());
+                componentInfo.addDependency(d);
                 continue;
+            }
 
             bool excluded = false;
             // Check for excluded library
@@ -162,10 +186,32 @@ std::list<std::string> Target::traverseAppDependencies(std::list<std::string> co
 
             BOOST_LOG_TRIVIAL(debug) << "Found: " << lib;
             components.push_back(lib);
-            dependencyList.push_back(lib);
+
+            Dependency d;
+            bf::path libpath(lib);
+            d.setName(libpath.filename().string());
+            componentInfo.addDependency(d);
         }
         processedComponents.insert(current);
+        objectComponents.push_back(componentInfo);
     }
 
-    return dependencyList;
+    return objectComponents;
+}
+
+void Target::copyObjects(std::list<ComponentInfo> components)
+{
+    // note: all targets are copied into the Frameworks directory!
+
+    bf::path dst = mFrameworksPath;
+    for (auto component : components) {
+        bf::path src = bf::path(component.getPath()) / component.getName();
+
+        bf::copy(src, dst);
+    }
+}
+
+void Target::fixLinks(std::list<ComponentInfo> components)
+{
+
 }

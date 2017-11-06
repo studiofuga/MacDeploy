@@ -12,7 +12,7 @@ ADD_DEFINITIONS(-DBOOST_LOG_DYN_LINK)
 
 include_directories(${Boost_INCLUDE_DIR})
 
-add_executable(MacDeploy main.cpp Target.cpp Target.h)
+add_executable(MacDeploy main.cpp Target.cpp Target.h Dependency.cpp Dependency.h ComponentInfo.cpp ComponentInfo.h)
 
 target_link_libraries(MacDeploy Boost::filesystem Boost::system Boost::log Boost::thread Boost::program_options)
 

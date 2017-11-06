@@ -5,6 +5,8 @@
 #ifndef MACDEPLOY_TARGET_H
 #define MACDEPLOY_TARGET_H
 
+#include "ComponentInfo.h"
+
 #include <string>
 #include <vector>
 
@@ -13,6 +15,7 @@
 
 class Target final {
     boost::filesystem::path mPath;
+    boost::filesystem::path mFrameworksPath, mExePath;
     std::set<std::string> mExclusions;
     std::vector<std::string> mAdditionalLibraryPaths;
 public:
@@ -27,7 +30,11 @@ private:
 
     std::string resolveLibrary(std::string library);
 
-    std::list<std::string> traverseAppDependencies(std::list<std::string> components);
+    std::list<ComponentInfo> traverseAppDependencies(std::list<std::string> components);
+
+    void copyObjects(std::list<ComponentInfo> list);
+
+    void fixLinks(std::list<ComponentInfo> components);
 };
 
 
