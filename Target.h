@@ -6,13 +6,19 @@
 #define MACDEPLOY_TARGET_H
 
 #include <string>
+#include <vector>
 
-class Target {
-    std::string mPath;
+#include <boost/filesystem.hpp>
+
+class Target final {
+    boost::filesystem::path mPath;
 public:
     explicit Target(std::string path);
 
     bool process();
+
+private:
+    std::vector<std::string> listAllComponents(std::string path);
 };
 
 
