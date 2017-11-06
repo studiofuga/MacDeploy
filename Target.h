@@ -9,9 +9,11 @@
 #include <vector>
 
 #include <boost/filesystem.hpp>
+#include <set>
 
 class Target final {
     boost::filesystem::path mPath;
+    std::set<std::string> mExclusions;
 public:
     explicit Target(std::string path);
 

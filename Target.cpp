@@ -10,15 +10,22 @@
 
 #include <algorithm>
 #include <set>
+#include <regex>
 
 using namespace std;
 
 namespace bp = boost::process;
+namespace bf = boost::filesystem;
 
 Target::Target(std::string path)
 : mPath(std::move(path))
 {
+    list<string> defaultExclusions {
+            "^/usr/lib/.*",
+            ".*\\.framework/.*"
+    };
 
+    std::copy(defaultExclusions.begin(), defaultExclusions.end(), inserter(mExclusions, mExclusions.end()));
 }
 
 bool Target::process()
@@ -38,6 +45,26 @@ bool Target::process()
 
         BOOST_LOG_TRIVIAL(info) << "Processing: " << current;
 
+        auto comp = processedComponents.find(current);
+        if (comp != processedComponents.end())
+            continue;
+
+        bf::path current_resolved(current);
+        if (!bf::exists(current_resolved)) {
+            current_resolved = bp::search_path(current);
+            auto current_t = current_resolved.string();
+            comp = processedComponents.find(current_t);
+            if (comp != processedComponents.end())
+                continue;
+            bf::path current_resolved(current_t);
+            if (!bf::exists(current_resolved)) {
+                BOOST_LOG_TRIVIAL(error) << "Can't resolve: " << current << "; skipping.";
+                continue;
+            }
+
+            current = current_t;
+        }
+
         auto external_libs = collectLinkerReferences(current);
 
         for (auto lib : external_libs) {
@@ -45,8 +72,22 @@ bool Target::process()
             if (comp != processedComponents.end())
                 continue;
 
+            bool excluded = false;
             // Check for excluded library
+            for (auto x : mExclusions) {
+                regex r(x);
+                if (regex_search(lib,r)) {
+                    excluded = true;
+                    break;
+                }
+            }
+            if (excluded)
+                continue;
+
+            BOOST_LOG_TRIVIAL(debug) << "Found: " << lib;
+            components.push_back(lib);
         }
+        processedComponents.insert(current);
     }
 
 
@@ -71,6 +112,21 @@ std::vector<std::string> Target::listAllComponents(std::string path)
 std::list<std::string> Target::collectLinkerReferences(std::string component)
 {
     list<string> v;
+
+    bp::ipstream out;
+    auto otool = bp::search_path("otool");
+    bp::child chld(otool, bp::args = {std::string{"-L"}, component}, bp::std_out > out);
+
+    std::string line;
+    std::regex regex{R"(^\s+([^@\s][\S]*))"};
+    smatch match;
+    while (chld.running() && std::getline(out, line) && !line.empty()) {
+        if (regex_search(line, match, regex)) {
+            v.push_back(match[1]);
+        }
+    }
+
+    chld.wait();
 
     return v;
 }
