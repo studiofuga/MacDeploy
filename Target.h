@@ -26,6 +26,8 @@ private:
     std::list<std::string> collectLinkerReferences(std::string component);
 
     std::string resolveLibrary(std::string library);
+
+    std::list<std::string> traverseAppDependencies(std::list<std::string> components);
 };
 
 

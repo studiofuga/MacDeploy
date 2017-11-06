@@ -50,52 +50,7 @@ bool Target::process()
     std::copy(executables.begin(), executables.end(), std::back_inserter(components));
     std::copy(frameworks.begin(), frameworks.end(), std::back_inserter(components));
 
-    std::set<std::string> processedComponents;
-
-    while (!components.empty()) {
-        auto current = *components.begin();
-        components.erase(components.begin());
-
-        BOOST_LOG_TRIVIAL(debug) << "Searching: " << current;
-
-        try {
-            current = resolveLibrary(current);
-        } catch (CantResolveLibraryException &) {
-            BOOST_LOG_TRIVIAL(error) << "Can't resolve: " << current << "; skipping.";
-            continue;
-        }
-
-        BOOST_LOG_TRIVIAL(info) << "Processing: " << current;
-
-        auto comp = processedComponents.find(current);
-        if (comp != processedComponents.end())
-            continue;
-
-        auto external_libs = collectLinkerReferences(current);
-
-        for (auto lib : external_libs) {
-            auto comp = processedComponents.find(lib);
-            if (comp != processedComponents.end())
-                continue;
-
-            bool excluded = false;
-            // Check for excluded library
-            for (auto x : mExclusions) {
-                regex r(x);
-                if (regex_search(lib,r)) {
-                    excluded = true;
-                    break;
-                }
-            }
-            if (excluded)
-                continue;
-
-            BOOST_LOG_TRIVIAL(debug) << "Found: " << lib;
-            components.push_back(lib);
-        }
-        processedComponents.insert(current);
-    }
-
+    auto objects = traverseAppDependencies (components);
 
     return true;
 }
@@ -160,4 +115,57 @@ std::string Target::resolveLibrary(std::string library)
     } else {
         return library;
     }
+}
+
+std::list<std::string> Target::traverseAppDependencies(std::list<std::string> components)
+{
+    std::list<string> dependencyList;
+
+    std::set<std::string> processedComponents;
+    while (!components.empty()) {
+        auto current = *components.begin();
+        components.erase(components.begin());
+
+        BOOST_LOG_TRIVIAL(debug) << "Searching: " << current;
+
+        try {
+            current = resolveLibrary(current);
+        } catch (CantResolveLibraryException &) {
+            BOOST_LOG_TRIVIAL(error) << "Can't resolve: " << current << "; skipping.";
+            continue;
+        }
+
+        BOOST_LOG_TRIVIAL(info) << "Processing: " << current;
+
+        auto comp = processedComponents.find(current);
+        if (comp != processedComponents.end())
+            continue;
+
+        auto external_libs = collectLinkerReferences(current);
+
+        for (auto lib : external_libs) {
+            auto comp = processedComponents.find(lib);
+            if (comp != processedComponents.end())
+                continue;
+
+            bool excluded = false;
+            // Check for excluded library
+            for (auto x : mExclusions) {
+                regex r(x);
+                if (regex_search(lib,r)) {
+                    excluded = true;
+                    break;
+                }
+            }
+            if (excluded)
+                continue;
+
+            BOOST_LOG_TRIVIAL(debug) << "Found: " << lib;
+            components.push_back(lib);
+            dependencyList.push_back(lib);
+        }
+        processedComponents.insert(current);
+    }
+
+    return dependencyList;
 }
