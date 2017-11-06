@@ -14,6 +14,7 @@
 class Target final {
     boost::filesystem::path mPath;
     std::set<std::string> mExclusions;
+    std::vector<std::string> mAdditionalLibraryPaths;
 public:
     explicit Target(std::string path);
 
@@ -23,6 +24,8 @@ private:
     std::vector<std::string> listAllComponents(std::string path);
 
     std::list<std::string> collectLinkerReferences(std::string component);
+
+    std::string resolveLibrary(std::string library);
 };
 
 

@@ -17,6 +17,11 @@ using namespace std;
 namespace bp = boost::process;
 namespace bf = boost::filesystem;
 
+namespace {
+class CantResolveLibraryException {
+};
+}
+
 Target::Target(std::string path)
 : mPath(std::move(path))
 {
@@ -26,6 +31,14 @@ Target::Target(std::string path)
     };
 
     std::copy(defaultExclusions.begin(), defaultExclusions.end(), inserter(mExclusions, mExclusions.end()));
+
+    vector<string> defaultAdditionalLibrarySearchPath {
+            "/usr/local/lib"
+    };
+
+    std::copy(defaultAdditionalLibrarySearchPath.begin(), defaultAdditionalLibrarySearchPath.end(),
+              back_inserter(mAdditionalLibraryPaths)
+    );
 }
 
 bool Target::process()
@@ -43,27 +56,20 @@ bool Target::process()
         auto current = *components.begin();
         components.erase(components.begin());
 
+        BOOST_LOG_TRIVIAL(debug) << "Searching: " << current;
+
+        try {
+            current = resolveLibrary(current);
+        } catch (CantResolveLibraryException &) {
+            BOOST_LOG_TRIVIAL(error) << "Can't resolve: " << current << "; skipping.";
+            continue;
+        }
+
         BOOST_LOG_TRIVIAL(info) << "Processing: " << current;
 
         auto comp = processedComponents.find(current);
         if (comp != processedComponents.end())
             continue;
-
-        bf::path current_resolved(current);
-        if (!bf::exists(current_resolved)) {
-            current_resolved = bp::search_path(current);
-            auto current_t = current_resolved.string();
-            comp = processedComponents.find(current_t);
-            if (comp != processedComponents.end())
-                continue;
-            bf::path current_resolved(current_t);
-            if (!bf::exists(current_resolved)) {
-                BOOST_LOG_TRIVIAL(error) << "Can't resolve: " << current << "; skipping.";
-                continue;
-            }
-
-            current = current_t;
-        }
 
         auto external_libs = collectLinkerReferences(current);
 
@@ -129,4 +135,29 @@ std::list<std::string> Target::collectLinkerReferences(std::string component)
     chld.wait();
 
     return v;
+}
+
+std::string Target::resolveLibrary(std::string library)
+{
+    bf::path current_resolved(library);
+    if (!bf::exists(current_resolved)) {
+        current_resolved = bp::search_path(library);
+
+        if (bf::exists(current_resolved)) {
+            return current_resolved.string();
+        }
+
+        // try each additional path
+        for (auto path : mAdditionalLibraryPaths) {
+            bf::path c = bf::path{path} / library;
+
+            if (bf::exists(c)) {
+                return c.string();
+            }
+        }
+
+        throw CantResolveLibraryException();
+    } else {
+        return library;
+    }
 }
