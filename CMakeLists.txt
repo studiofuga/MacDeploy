@@ -3,8 +3,10 @@ cmake_minimum_required(VERSION 3.1)
 
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 
-find_package(Boost REQUIRED COMPONENTS log program_options filesystem)
+
+find_package(Boost 1.64 REQUIRED COMPONENTS log program_options filesystem)
 
 ADD_DEFINITIONS(-DBOOST_LOG_DYN_LINK)
 

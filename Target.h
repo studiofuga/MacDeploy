@@ -19,6 +19,8 @@ public:
 
 private:
     std::vector<std::string> listAllComponents(std::string path);
+
+    std::list<std::string> collectLinkerReferences(std::string component);
 };
 
 

@@ -6,10 +6,14 @@
 
 #include <boost/filesystem.hpp>
 #include <boost/log/trivial.hpp>
+#include <boost/process.hpp>
 
 #include <algorithm>
+#include <set>
 
 using namespace std;
+
+namespace bp = boost::process;
 
 Target::Target(std::string path)
 : mPath(std::move(path))
@@ -26,11 +30,23 @@ bool Target::process()
     std::copy(executables.begin(), executables.end(), std::back_inserter(components));
     std::copy(frameworks.begin(), frameworks.end(), std::back_inserter(components));
 
+    std::set<std::string> processedComponents;
+
     while (!components.empty()) {
         auto current = *components.begin();
         components.erase(components.begin());
 
         BOOST_LOG_TRIVIAL(info) << "Processing: " << current;
+
+        auto external_libs = collectLinkerReferences(current);
+
+        for (auto lib : external_libs) {
+            auto comp = processedComponents.find(lib);
+            if (comp != processedComponents.end())
+                continue;
+
+            // Check for excluded library
+        }
     }
 
 
@@ -49,5 +65,12 @@ std::vector<std::string> Target::listAllComponents(std::string path)
         auto p = *itr;
         v.push_back(p.path().string());
     }
+    return v;
+}
+
+std::list<std::string> Target::collectLinkerReferences(std::string component)
+{
+    list<string> v;
+
     return v;
 }
